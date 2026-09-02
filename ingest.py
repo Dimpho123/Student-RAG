@@ -21,8 +21,8 @@ for page_num in range(len(doc)):
 
 # Split into chunks
 splitter = RecursiveCharacterTextSplitter(
-   chunk_size=300,
-chunk_overlap=50
+    chunk_size=300,
+    chunk_overlap=50
 )
 
 chunks = []
@@ -36,29 +36,27 @@ for document in documents:
             "page": document["page"]
         })
 
-print(f"Created {len(chunks)} chunks")
+print(f"Created {len(chunks)} handbook chunks")
 
 # Load embedding model
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Create Chroma database
+# Connect to ChromaDB
 client = chromadb.PersistentClient(path="chroma_db")
 collection = client.get_or_create_collection("handbook")
 
-# Store embeddings
+# Store handbook embeddings
 for i, chunk in enumerate(chunks):
     embedding = model.encode(chunk["text"]).tolist()
 
-    collection.add(
-        ids=[str(i)],
+    collection.upsert(
+        ids=[f"handbook_{i}"],
         embeddings=[embedding],
         documents=[chunk["text"]],
-        metadatas=[{"page": chunk["page"]}]
-        
+        metadatas=[{
+            "source": "Handbook",
+            "page": chunk["page"]
+        }]
     )
-for i in range(10):
-    print(f"\n===== CHUNK {i} =====")
-    print(chunks[i]["text"])
-   
 
-print(f" Stored {len(chunks)} chunks in ChromaDB")
+print(f"Stored {len(chunks)} handbook chunks in ChromaDB")

@@ -11,14 +11,18 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def generate_answer(context, question):
     prompt = f"""
-You are an AI assistant answering questions from a student handbook.
+You are an AI assistant answering questions using trusted ZAIO information.
 
 IMPORTANT RULES:
-- Use ONLY the handbook context.
-- Do NOT summarize unless the user asks for a summary.
-- Include ALL relevant details from the handbook.
-- If the answer is not found in the handbook, reply exactly:
-I don't know.
+- Use ONLY the information provided in the retrieved context.
+- The context may come from the Student Handbook or the official ZAIO website.
+- Do NOT use outside knowledge.
+- Do NOT make up or assume information that is not contained in the context.
+- Answer the question directly and clearly.
+- Include all relevant details from the retrieved context.
+- If the answer cannot be found in the retrieved context, reply exactly:
+I don't know.If the answer cannot be found in the retrieved context, reply exactly:
+I could not find that information in the available knowledge base.
 
 HANDBOOK CONTEXT:
 {context}
@@ -30,7 +34,7 @@ Answer:
 """
 
     response = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
+       model="openai/gpt-oss-20b",
         messages=[
             {
                 "role": "user",

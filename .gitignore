@@ -12,4 +12,3 @@ __pycache__/
 .pytest_cache/
 
 # ChromaDB database
-chroma_db/
