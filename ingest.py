@@ -1,62 +1,113 @@
-import fitz  # PyMuPDF
+import os
+import pickle
+
 import chromadb
-from sentence_transformers import SentenceTransformer
+import fitz
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-# Open the handbook
-doc = fitz.open("handbook.pdf")
 
-# Extract text from every page
-documents = []
 
-for page_num in range(len(doc)):
-    page = doc.load_page(page_num)
-    text = page.get_text()
+# Connect to ChromaDB
 
-    if text.strip():
-        documents.append({
-            "text": text,
-            "page": page_num + 1
-        })
 
-# Split into chunks
-splitter = RecursiveCharacterTextSplitter(
+client = chromadb.PersistentClient(path="chroma_db")
+
+
+# Delete the old collection if it exists
+try:
+    client.delete_collection("handbook")
+except Exception:
+    pass
+
+
+# Create a fresh collection
+collection = client.create_collection("handbook")
+
+
+
+# Load the Student Handbook PDF
+
+
+pdf = fitz.open("handbook.pdf")
+
+
+
+# Text splitter
+
+
+text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=300,
     chunk_overlap=50
 )
 
-chunks = []
 
-for document in documents:
-    split_text = splitter.split_text(document["text"])
+documents = []
+metadatas = []
+ids = []
 
-    for chunk in split_text:
-        chunks.append({
-            "text": chunk,
-            "page": document["page"]
+
+
+# Extract and split handbook pages
+
+
+for page_number, page in enumerate(pdf, start=1):
+
+    text = page.get_text()
+
+    if not text.strip():
+        continue
+
+    chunks = text_splitter.split_text(text)
+
+    for chunk_number, chunk in enumerate(chunks):
+
+        documents.append(chunk)
+
+        metadatas.append({
+            "source": "Handbook",
+            "page": page_number
         })
 
-print(f"Created {len(chunks)} handbook chunks")
+        ids.append(
+            f"handbook-{page_number}-{chunk_number}"
+        )
 
-# Load embedding model
-model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Connect to ChromaDB
-client = chromadb.PersistentClient(path="chroma_db")
-collection = client.get_or_create_collection("handbook")
 
-# Store handbook embeddings
-for i, chunk in enumerate(chunks):
-    embedding = model.encode(chunk["text"]).tolist()
+# Create TF-IDF embeddings
 
-    collection.upsert(
-        ids=[f"handbook_{i}"],
-        embeddings=[embedding],
-        documents=[chunk["text"]],
-        metadatas=[{
-            "source": "Handbook",
-            "page": chunk["page"]
-        }]
-    )
 
-print(f"Stored {len(chunks)} handbook chunks in ChromaDB")
+vectorizer = TfidfVectorizer(
+    max_features=5000,
+    stop_words="english"
+)
+
+embeddings = vectorizer.fit_transform(documents).toarray()
+
+
+
+# Save the vectorizer
+
+
+with open("vectorizer.pkl", "wb") as file:
+    pickle.dump(vectorizer, file)
+
+
+
+# Store embeddings in ChromaDB
+
+
+collection.add(
+    documents=documents,
+    embeddings=embeddings.tolist(),
+    metadatas=metadatas,
+    ids=ids
+)
+
+
+print(
+    f"Successfully added {len(documents)} handbook chunks to ChromaDB."
+)
+
+print("TF-IDF vectorizer saved as vectorizer.pkl")
